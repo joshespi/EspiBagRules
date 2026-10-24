@@ -1,0 +1,28 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check release metadata
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          grep -qE '^## X-Curse-Project-ID: *[0-9]+' EspiBagRules.toc \
+            || { echo "::error::Add ## X-Curse-Project-ID to EspiBagRules.toc"; exit 1; }
+          grep -qE "^## ${ver}[[:space:]]*$" CHANGELOG.md \
+            || { echo "::error::CHANGELOG.md has no '## ${ver}' entry"; exit 1; }
+      - uses: BigWigsMods/packager@v2

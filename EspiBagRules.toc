@@ -1,0 +1,11 @@
+## Interface: 120100, 120007
+## Title: Espi Bag Rules
+## Notes: Custom Clean Up sorting: equipment-set gear first, BoE in the middle, conjured, junk and other bound gear at the bottom. /bagrules
+## Author: Josh Espinoza
+## Version: @project-version@
+## Category: Inventory
+## IconTexture: Interface\Icons\INV_Misc_Bag_08
+## SavedVariables: EspiBagRulesDB
+## X-Curse-Project-ID: 1763839
+
+EspiBagRules.lua
