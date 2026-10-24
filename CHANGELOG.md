@@ -1,5 +1,9 @@
 # EspiBagRules
 
+## 1.1.0
+
+- The guild teleport cloaks (Shroud of Cooperation, Wrap of Unity, Cloak of Coordination) sort right after set gear, as toy gear, instead of with the bound gear in the last slots.
+
 ## 1.0.0
 
 - First release.

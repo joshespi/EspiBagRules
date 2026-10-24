@@ -41,10 +41,17 @@ local frame = CreateFrame("Frame")
 
 -- in layout order; pinned sections form the bottom block in the last slots
 local SECTIONS = {
-    { name = "SetGear" }, { name = "Other" }, { name = "BoE" },
+    { name = "SetGear" }, { name = "ToyGear" }, { name = "Other" }, { name = "BoE" },
     { name = "Conjured", pinned = true }, { name = "Junk", pinned = true }, { name = "Bound", pinned = true },
 }
-local SETGEAR, OTHER, BOE, CONJURED, JUNK, BOUND = 1, 2, 3, 4, 5, 6 -- indices into SECTIONS
+local SETGEAR, TOYGEAR, OTHER, BOE, CONJURED, JUNK, BOUND = 1, 2, 3, 4, 5, 6, 7 -- indices into SECTIONS
+
+-- gear kept for its Use effect, not to wear: sorts like a toy
+local TOYGEAR_IDS = {
+    [63352] = true, [63353] = true, -- Shroud of Cooperation (Alliance, Horde)
+    [63206] = true, [63207] = true, -- Wrap of Unity (Alliance, Horde)
+    [65360] = true, [65274] = true, -- Cloak of Coordination (Alliance, Horde)
+}
 
 local SLOT_ORDER = {
     INVTYPE_HEAD = 1, INVTYPE_NECK = 2, INVTYPE_SHOULDER = 3, INVTYPE_CLOAK = 4,
@@ -146,6 +153,8 @@ local function Classify(bag, slot, info, sets, general)
         rec.section = JUNK
     elseif not general then
         rec.section = OTHER
+    elseif TOYGEAR_IDS[itemID] then
+        rec.section = TOYGEAR
     elseif IsConjured(bag, slot, itemID) then
         rec.section = CONJURED
     elseif not gear then
