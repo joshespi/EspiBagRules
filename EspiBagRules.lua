@@ -41,10 +41,10 @@ local frame = CreateFrame("Frame")
 
 -- in layout order; pinned sections form the bottom block in the last slots
 local SECTIONS = {
-    { name = "SetGear" }, { name = "ToyGear" }, { name = "Other" }, { name = "BoE" },
+    { name = "SetGear" }, { name = "ToyGear" }, { name = "Heirloom" }, { name = "Other" }, { name = "BoE" },
     { name = "Conjured", pinned = true }, { name = "Junk", pinned = true }, { name = "Bound", pinned = true },
 }
-local SETGEAR, TOYGEAR, OTHER, BOE, CONJURED, JUNK, BOUND = 1, 2, 3, 4, 5, 6, 7 -- indices into SECTIONS
+local SETGEAR, TOYGEAR, HEIRLOOM, OTHER, BOE, CONJURED, JUNK, BOUND = 1, 2, 3, 4, 5, 6, 7, 8 -- indices into SECTIONS
 
 -- gear kept for its Use effect, not to wear: sorts like a toy
 local TOYGEAR_IDS = {
@@ -164,6 +164,8 @@ local function Classify(bag, slot, info, sets, general)
         if inSet then
             rec.section = SETGEAR
             rec.setRank = SetRank(setList or "", sets)
+        elseif quality == Enum.ItemQuality.Heirloom then
+            rec.section = HEIRLOOM
         elseif IsTradeable(info, loc) then
             rec.section = BOE
         else
@@ -287,7 +289,9 @@ local function BuildRegions()
     end
     if #general > 0 then
         local slots, order = DisplayOrder(general)
-        table.insert(regions, 1, NewRegion(slots, true, ("general %d slots (%s)"):format(#slots, order)))
+        local region = NewRegion(slots, true, ("general %d slots (%s)"):format(#slots, order))
+        region.fallback = order:match("^fallback: (.*)")
+        table.insert(regions, 1, region)
     end
     return regions
 end
@@ -533,6 +537,10 @@ local function Sort()
     local labels = {}
     for _, region in ipairs(regions) do labels[#labels + 1] = region.label end
     Log("sort: " .. table.concat(labels, ", "))
+    if regions[1].fallback then
+        Print("sorting by slot order, not screen order (" .. regions[1].fallback .. ")")
+    end
+    Print("sorting... /bagrules stop to cancel")
 
     run = {
         regions = regions, sets = BuildSets(), passes = 0, moves = 0, merges = 0,
@@ -625,6 +633,7 @@ end)
 
 local HELP = {
     "/bagrules sort - sort your bags now",
+    "/bagrules stop - cancel a sort in progress",
     "/bagrules preview - list what each section would hold, moves nothing",
     "/bagrules on - Clean Up button uses EspiBagRules",
     "/bagrules off - Clean Up button uses Blizzard's sort",
@@ -640,6 +649,8 @@ SlashCmdList.ESPIBAGRULES = function(msg)
     local cmd = strtrim(msg or ""):lower():match("^(%S*)")
     if cmd == "sort" then
         Sort()
+    elseif cmd == "stop" then
+        if run then Stop("cancelled") else Print("not sorting") end
     elseif cmd == "preview" then
         Preview()
     elseif cmd == "on" or cmd == "off" then
@@ -656,8 +667,11 @@ SlashCmdList.ESPIBAGRULES = function(msg)
         if #log == 0 then Print("log is empty") end
         for i = math.max(1, #log - LOG_SHOW + 1), #log do Print(log[i]) end
     else
+        if cmd ~= "" and cmd ~= "help" then Print(("unknown command '%s'"):format(cmd)) end
         local ver = C_AddOns.GetAddOnMetadata(ADDON, "Version") or "?"
-        Print(ver:find("^@") and "dev" or "v" .. (ver:gsub("^v", "")))
+        Print(("%s - override %s, pin %s, debug %s"):format(
+            ver:find("^@") and "dev" or "v" .. (ver:gsub("^v", "")),
+            db.enabled and "on" or "off", db.pinBound and "on" or "off", db.debug and "on" or "off"))
         for _, line in ipairs(HELP) do Print(line) end
     end
 end
