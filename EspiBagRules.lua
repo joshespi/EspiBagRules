@@ -147,6 +147,7 @@ local function Classify(bag, slot, info, sets, general)
         ilvl = C_Item.GetCurrentItemLevel(loc) or 0,
         slotOrder = gear and SLOT_ORDER[equipLoc] or 99,
         setRank = 0,
+        reagent = select(17, C_Item.GetItemInfo(itemID)) == true, -- isCraftingReagent
     }
 
     if quality == Enum.ItemQuality.Poor then
@@ -283,14 +284,16 @@ local function BuildRegions()
             if bag ~= Enum.BagIndex.ReagentBag and (family or 0) == 0 then
                 for _, s in ipairs(slots) do general[#general + 1] = s end
             else
-                regions[#regions + 1] = NewRegion(slots, false, ("bag %d: %d slots"):format(bag, #slots))
+                local region = NewRegion(slots, false, ("bag %d: %d slots"):format(bag, #slots))
+                region.reagent = bag == Enum.BagIndex.ReagentBag
+                regions[#regions + 1] = region
             end
         end
     end
     if #general > 0 then
         local slots, order = DisplayOrder(general)
         local region = NewRegion(slots, true, ("general %d slots (%s)"):format(#slots, order))
-        region.fallback = order:match("^fallback: (.*)")
+        region.fallback = order:find("^fallback") and order
         table.insert(regions, 1, region)
     end
     return regions
@@ -459,6 +462,33 @@ local function OrderRegion(region, recs)
     return moves, nil, stuck
 end
 
+-- crafting reagents in the general bags move into free reagent bag slots (like Blizzard's sort);
+-- the merge and order passes then work inside the reagent bag. Returns the moves issued.
+local function FillReagentBag(run_, snaps)
+    local gi, ri
+    for i, region in ipairs(run_.regions) do
+        if region.general then gi = i elseif region.reagent then ri = i end
+    end
+    if not (gi and ri) then return 0 end
+    local general, reagent = run_.regions[gi], run_.regions[ri]
+    local gsnap, rsnap = snaps[gi], snaps[ri]
+
+    local free = 1
+    local moves = 0
+    for i = 1, general.n do
+        local r = gsnap[i]
+        if r and r.reagent and not r.locked then
+            while free <= reagent.n and rsnap[free] do free = free + 1 end
+            if free > reagent.n then break end
+            local ok, err = Move(general.slots[i], reagent.slots[free])
+            if not ok then return moves, err end
+            moves = moves + 1
+            free = free + 1
+        end
+    end
+    return moves
+end
+
 local function Step()
     if PendingLocked() then
         local now = GetTime()
@@ -486,6 +516,14 @@ local function Step()
     if merged > 0 then -- let the merges land, then re-snapshot
         run.merges = run.merges + merged
         Debug(("pass %d: %d merges"):format(run.passes, merged))
+        return
+    end
+
+    local filled, ferr = FillReagentBag(run, snaps)
+    if ferr then return Stop(ferr) end
+    if filled > 0 then -- let the moves land, then re-snapshot
+        run.moves = run.moves + filled
+        Debug(("pass %d: %d reagents to reagent bag"):format(run.passes, filled))
         return
     end
 
@@ -538,7 +576,7 @@ local function Sort()
     for _, region in ipairs(regions) do labels[#labels + 1] = region.label end
     Log("sort: " .. table.concat(labels, ", "))
     if regions[1].fallback then
-        Print("sorting by slot order, not screen order (" .. regions[1].fallback .. ")")
+        Print("sorting by slot order, not screen order (" .. regions[1].fallback:gsub("^fallback: ", "") .. ")")
     end
     Print("sorting... /bagrules stop to cancel")
 

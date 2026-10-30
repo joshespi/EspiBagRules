@@ -2,7 +2,7 @@
 ## Title: Espi Bag Rules
 ## Notes: Custom Clean Up sorting: equipment-set gear first, BoE in the middle, conjured, junk and other bound gear at the bottom. /bagrules
 ## Author: Josh Espinoza
-## Version: 1.2.0
+## Version: 1.2.1
 ## Category: Inventory
 ## IconTexture: Interface\Icons\INV_Misc_Bag_08
 ## SavedVariables: EspiBagRulesDB

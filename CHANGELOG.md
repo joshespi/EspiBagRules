@@ -1,5 +1,9 @@
 # EspiBagRules
 
+## 1.2.1
+
+- Properly sort reagents into reagent conatiner when there is space
+
 ## 1.2.0
 
 - `/bagrules stop` cancels a sort in progress; a sort now announces itself when it starts.
