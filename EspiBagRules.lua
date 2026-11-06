@@ -65,7 +65,11 @@ local SLOT_ORDER = {
 
 -- Warbound by the item's bind type. Not ToBnetAccountUntilEquipped: once worn that's soulbound,
 -- so it's checked on the bag slot instead.
-local WARBOUND = { [Enum.ItemBind.ToWoWAccount] = true, [Enum.ItemBind.ToBnetAccount] = true }
+local WARBOUND = {}
+if Enum and Enum.ItemBind then
+    if Enum.ItemBind.ToWoWAccount then WARBOUND[Enum.ItemBind.ToWoWAccount] = true end
+    if Enum.ItemBind.ToBnetAccount then WARBOUND[Enum.ItemBind.ToBnetAccount] = true end
+end
 
 -- gear you can still trade or send to an alt sorts as BoE: unbound, Warbound, or Warbound
 -- until equipped (loc is the item's bag slot)
@@ -127,7 +131,7 @@ local function SetRank(setList, sets)
     return #sets + 1
 end
 
-local loc = ItemLocation:CreateEmpty() -- reused: Classify never keeps it
+local loc = ItemLocation and ItemLocation:CreateEmpty() -- reused: Classify never keeps it
 
 -- general == false: a reagent or profession bag, where everything is Other or Junk
 local function Classify(bag, slot, info, sets, general)
@@ -286,6 +290,7 @@ local function BuildRegions()
             else
                 local region = NewRegion(slots, false, ("bag %d: %d slots"):format(bag, #slots))
                 region.reagent = bag == Enum.BagIndex.ReagentBag
+                region.family = family or 0 -- item types the bag accepts (0: no restriction)
                 regions[#regions + 1] = region
             end
         end
@@ -456,34 +461,52 @@ local function OrderRegion(region, recs)
                 if not ok then return moves, err end
                 moves = moves + 1
                 used[i], used[j] = true, true
+                Debug(("  move %d->%d: %s [sec %d, set %d, ilvl %d] (had %s)"):format(
+                    j, i, want.link, want.section, want.setRank, want.ilvl, have and have.link or "empty"))
             end
         end
     end
     return moves, nil, stuck
 end
 
--- crafting reagents in the general bags move into free reagent bag slots (like Blizzard's sort);
--- the merge and order passes then work inside the reagent bag. Returns the moves issued.
-local function FillReagentBag(run_, snaps)
-    local gi, ri
-    for i, region in ipairs(run_.regions) do
-        if region.general then gi = i elseif region.reagent then ri = i end
+-- does the item belong in this special bag? Profession bags (family ~= 0) take their own item
+-- types; a family-less reagent bag takes crafting reagents
+local function FitsBag(region, r)
+    if region.family ~= 0 then
+        local fam = (C_Item.GetItemFamily or GetItemFamily)(r.itemID) or 0
+        return bit.band(fam, region.family) ~= 0
     end
-    if not (gi and ri) then return 0 end
-    local general, reagent = run_.regions[gi], run_.regions[ri]
-    local gsnap, rsnap = snaps[gi], snaps[ri]
+    return region.reagent and r.reagent
+end
 
-    local free = 1
+-- items in the general bags move into free slots of a reagent or profession bag they fit (like
+-- Blizzard's sort); the merge and order passes then work inside that bag. Each source slot is
+-- tried once per sort, so an item the bag refuses can't loop. Returns the moves issued.
+local function FillSpecialBags(run_, snaps)
+    local gi
+    for i, region in ipairs(run_.regions) do
+        if region.general then gi = i end
+    end
+    if not gi then return 0 end
+    local general, gsnap = run_.regions[gi], snaps[gi]
+
     local moves = 0
-    for i = 1, general.n do
-        local r = gsnap[i]
-        if r and r.reagent and not r.locked then
-            while free <= reagent.n and rsnap[free] do free = free + 1 end
-            if free > reagent.n then break end
-            local ok, err = Move(general.slots[i], reagent.slots[free])
-            if not ok then return moves, err end
-            moves = moves + 1
-            free = free + 1
+    for ri, special in ipairs(run_.regions) do
+        if not special.general then
+            local rsnap, free = snaps[ri], 1
+            for i = 1, general.n do
+                local r = gsnap[i]
+                local id = r and (general.slots[i].bag .. ":" .. general.slots[i].slot .. ":" .. r.itemID)
+                if r and not r.locked and not run_.fillTried[id] and FitsBag(special, r) then
+                    while free <= special.n and rsnap[free] do free = free + 1 end
+                    if free > special.n then break end
+                    run_.fillTried[id] = true
+                    local ok, err = Move(general.slots[i], special.slots[free])
+                    if not ok then return moves, err end
+                    moves = moves + 1
+                    free = free + 1
+                end
+            end
         end
     end
     return moves
@@ -519,11 +542,11 @@ local function Step()
         return
     end
 
-    local filled, ferr = FillReagentBag(run, snaps)
+    local filled, ferr = FillSpecialBags(run, snaps)
     if ferr then return Stop(ferr) end
     if filled > 0 then -- let the moves land, then re-snapshot
         run.moves = run.moves + filled
-        Debug(("pass %d: %d reagents to reagent bag"):format(run.passes, filled))
+        Debug(("pass %d: %d items to reagent/profession bags"):format(run.passes, filled))
         return
     end
 
@@ -582,7 +605,7 @@ local function Sort()
 
     run = {
         regions = regions, sets = BuildSets(), passes = 0, moves = 0, merges = 0,
-        tried = {}, pending = {}, start = GetTime(),
+        tried = {}, fillTried = {}, pending = {}, start = GetTime(),
     }
     run.ticker = C_Timer.NewTicker(STEP_INTERVAL, Tick)
 end
@@ -621,6 +644,49 @@ local function Preview()
             end
         end
     end
+end
+
+-- Probe ---------------------------------------------------------------------
+
+-- reports which APIs this client has, so unsupported ones can be worked around
+local function Probe()
+    local C, I = C_Container or {}, C_Item or {}
+    local checks = {
+        { "C_Container", C_Container }, { "C_Container.GetContainerItemInfo", C.GetContainerItemInfo },
+        { "C_Container.PickupContainerItem", C.PickupContainerItem },
+        { "C_Container.SplitContainerItem", C.SplitContainerItem },
+        { "C_Container.GetContainerNumSlots", C.GetContainerNumSlots },
+        { "C_Container.GetContainerNumFreeSlots", C.GetContainerNumFreeSlots },
+        { "C_Container.GetBagSlotFlag", C.GetBagSlotFlag },
+        { "C_Container.GetBackpackAutosortDisabled", C.GetBackpackAutosortDisabled },
+        { "C_Container.GetContainerItemEquipmentSetInfo", C.GetContainerItemEquipmentSetInfo },
+        { "C_Item.GetItemInfo", I.GetItemInfo }, { "C_Item.GetItemInfoInstant", I.GetItemInfoInstant },
+        { "C_Item.GetCurrentItemLevel", I.GetCurrentItemLevel },
+        { "C_Item.GetItemMaxStackSizeByID", I.GetItemMaxStackSizeByID },
+        { "C_Item.IsBoundToAccountUntilEquip", I.IsBoundToAccountUntilEquip },
+        { "ItemLocation", ItemLocation },
+        { "C_TooltipInfo.GetBagItem", C_TooltipInfo and C_TooltipInfo.GetBagItem },
+        { "C_EquipmentSet", C_EquipmentSet }, { "C_Timer.NewTicker", C_Timer and C_Timer.NewTicker },
+        { "C_AddOns.GetAddOnMetadata", C_AddOns and C_AddOns.GetAddOnMetadata },
+        { "Enum.BagIndex", Enum and Enum.BagIndex },
+        { "Enum.BagIndex.ReagentBag", Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag },
+        { "Enum.BagSlotFlags", Enum and Enum.BagSlotFlags },
+        { "Enum.ItemBind", Enum and Enum.ItemBind }, { "Enum.ItemClass", Enum and Enum.ItemClass },
+        { "Enum.ItemQuality", Enum and Enum.ItemQuality },
+        { "ContainerFrameCombinedBags", ContainerFrameCombinedBags },
+        { "ContainerFrameSettingsManager", ContainerFrameSettingsManager },
+        { "BagItemAutoSortButton", BagItemAutoSortButton },
+        { "SOUNDKIT", SOUNDKIT }, { "ITEM_CONJURED", ITEM_CONJURED },
+    }
+    local missing = 0
+    for _, c in ipairs(checks) do
+        if not c[2] then
+            missing = missing + 1
+            Say("MISSING " .. c[1])
+        end
+    end
+    local build = select(4, GetBuildInfo())
+    Say(("probe on interface %s: %d of %d missing"):format(tostring(build), missing, #checks))
 end
 
 -- Button hook ---------------------------------------------------------------
@@ -673,6 +739,7 @@ local HELP = {
     "/bagrules sort - sort your bags now",
     "/bagrules stop - cancel a sort in progress",
     "/bagrules preview - list what each section would hold, moves nothing",
+    "/bagrules probe - list which game APIs this client is missing",
     "/bagrules on - Clean Up button uses EspiBagRules",
     "/bagrules off - Clean Up button uses Blizzard's sort",
     "/bagrules pin - toggle conjured, junk and bound gear pinned to the last slots",
@@ -691,6 +758,8 @@ SlashCmdList.ESPIBAGRULES = function(msg)
         if run then Stop("cancelled") else Print("not sorting") end
     elseif cmd == "preview" then
         Preview()
+    elseif cmd == "probe" then
+        Probe()
     elseif cmd == "on" or cmd == "off" then
         db.enabled = cmd == "on"
         Print("Clean Up button override " .. cmd)
