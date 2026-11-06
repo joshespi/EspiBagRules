@@ -1,6 +1,6 @@
 # EspiBagRules
 
-## 1.3.0
+## 1.3.1
 
 - Supports the WoW Forever client (interface 16001) alongside retail.
 - Reagent and profession bags: items move into a bag only if its type accepts them, so herb, mining and skinning bags fill correctly. Each item is tried once per sort, which fixes a sort that repeated until it gave up after 60 passes.
