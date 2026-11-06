@@ -1,5 +1,13 @@
 # EspiBagRules
 
+## 1.3.0
+
+- Supports the WoW Forever client (interface 16001) alongside retail.
+- Reagent and profession bags: items move into a bag only if its type accepts them, so herb, mining and skinning bags fill correctly. Each item is tried once per sort, which fixes a sort that repeated until it gave up after 60 passes.
+- `/bagrules probe` lists which game APIs the client is missing.
+- Loads without errors on clients that lack `Enum.ItemBind` or `ItemLocation`.
+- `/bagrules debug` now logs each move.
+
 ## 1.2.1
 
 - Properly sort reagents into reagent conatiner when there is space

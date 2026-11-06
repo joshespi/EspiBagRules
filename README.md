@@ -1,6 +1,6 @@
 # EspiBagRules
 
-A custom Clean Up for World of Warcraft (retail 12.x). It replaces the Clean Up button in your bags with a sorter that keeps equipment-set gear together at the top, puts gear you can still trade in the middle, and pins conjured items, junk and your other bound gear to the last slots.
+A custom Clean Up for World of Warcraft (retail 12.x and WoW Forever). It replaces the Clean Up button in your bags with a sorter that keeps equipment-set gear together at the top, puts gear you can still trade in the middle, and pins conjured items, junk and your other bound gear to the last slots.
 
 ## Layout
 
@@ -8,12 +8,13 @@ Your general bags are sorted into this order, in the order the slots are shown o
 
 1. **Set gear**: gear that belongs to an equipment set. One block per set, sets ordered by the spec they're assigned to (unassigned sets last, by name), pieces in paperdoll order.
 2. **Toy gear**: gear you keep for its Use effect rather than to wear: the guild teleport cloaks (Shroud of Cooperation, Wrap of Unity, Cloak of Coordination).
-3. **Other**: everything else, by item type, quality, item level and name.
-4. **BoE**: gear you can still trade or send to an alt: not bound yet, Warbound, or Warbound until equipped.
-5. *(empty slots)*
-6. **Conjured**: Healthstones, mage food and other conjured items.
-7. **Junk**: poor quality items.
-8. **Bound**: bound gear that isn't in a set, in the very last slots.
+3. **Heirloom**: heirloom gear that isn't in a set.
+4. **Other**: everything else, by item type, quality, item level and name.
+5. **BoE**: gear you can still trade or send to an alt: not bound yet, Warbound, or Warbound until equipped.
+6. *(empty slots)*
+7. **Conjured**: Healthstones, mage food and other conjured items.
+8. **Junk**: poor quality items.
+9. **Bound**: bound gear that isn't in a set, in the very last slots.
 
 Conjured, Junk and Bound form the bottom block, pinned to the last slots. `/bagrules pin` turns the pinning off, which packs them right after BoE with no gap.
 
@@ -34,6 +35,7 @@ Install from CurseForge, or copy the `EspiBagRules` folder into `_retail_/Interf
 | `/bagrules on`      | Clean Up button uses EspiBagRules                           |
 | `/bagrules off`     | Clean Up button uses Blizzard's sort                    |
 | `/bagrules pin`     | Toggle the bottom block pinned to the last slots        |
+| `/bagrules probe`   | List game APIs this client is missing                   |
 | `/bagrules log`     | Show the last 15 log lines                              |
 | `/bagrules debug`   | Toggle per-pass detail in chat and the log              |
 
